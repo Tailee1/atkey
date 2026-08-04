@@ -21,8 +21,10 @@ redistribute your new version, it MUST be open source.
 #endif
 
 // Doi mot chut truoc khi doc, vi ngay sau khi bam 半角/全角 thi
-// IME chua kip cap nhat trang thai.
-#define REFRESH_DELAY_MS  40
+// IME chua kip cap nhat trang thai. Doc hai lan: lan dau de phan hoi nhanh,
+// lan hai de bat truong hop IME doi trang thai cham hon binh thuong.
+#define REFRESH_DELAY_MS   30
+#define REFRESH_DELAY2_MS  150
 
 static volatile LONG _isNativeMode = 0;   // cache, hook doc bien nay
 static HANDLE _refreshEvent = NULL;
@@ -98,7 +100,12 @@ static DWORD WINAPI workerProc(LPVOID) {
 		// Cho IME cap nhat xong roi moi doc.
 		if (WaitForSingleObject(_quitEvent, REFRESH_DELAY_MS) == WAIT_OBJECT_0)
 			break;
+		InterlockedExchange(&_isNativeMode, queryJapaneseNativeMode() ? 1 : 0);
 
+		// Doc lai lan hai. Chi ton them 2 message va chi xay ra khi nguoi dung
+		// vua bam phim doi che do, khong bao gio xay ra trong luc dang go chu.
+		if (WaitForSingleObject(_quitEvent, REFRESH_DELAY2_MS) == WAIT_OBJECT_0)
+			break;
 		InterlockedExchange(&_isNativeMode, queryJapaneseNativeMode() ? 1 : 0);
 	}
 	return 0;

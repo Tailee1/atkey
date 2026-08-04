@@ -531,10 +531,18 @@ LRESULT CALLBACK keyboardHookProcess(int nCode, WPARAM wParam, LPARAM lParam) {
 	//Chi bao hieu cho thread nen, khong he goi SendMessage o day.
 	if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
 		switch (keyboardData->vkCode) {
-		case VK_KANJI:			//半角/全角
-		case VK_KANA:			//カタカナ/ひらがな
-		case VK_CONVERT:		//変換
-		case VK_NONCONVERT:		//無変換
+		//Ban phim Nhat 106/109 that su gui VK_OEM_AUTO (0xF3) va VK_OEM_ENLW
+		//(0xF4) cho phim 半角/全角, KHONG phai VK_KANJI. Da do bang
+		//tools/probe-keycode.ps1 tren may that. Van giu cac ma con lai vi ban
+		//phim va IME khac co the dung chung.
+		case VK_OEM_AUTO:		//0xF3 半角/全角
+		case VK_OEM_ENLW:		//0xF4 半角/全角 (chieu con lai)
+		case VK_OEM_COPY:		//0xF2 かな
+		case VK_OEM_BACKTAB:	//0xF5
+		case VK_KANJI:			//0x19
+		case VK_KANA:			//0x15
+		case VK_CONVERT:		//0x1C 変換
+		case VK_NONCONVERT:		//0x1D 無変換
 			jpImeRequestRefresh();
 			break;
 		case VK_SPACE:			//Win+Space doi keyboard layout
