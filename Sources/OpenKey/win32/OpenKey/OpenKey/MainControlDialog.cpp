@@ -100,9 +100,6 @@ void MainControlDialog::initDialog() {
     checkShift = GetDlgItem(hDlg, IDC_CHECK_SWITCH_KEY_SHIFT);
     createToolTip(checkShift, IDS_STRING_SHIFT);
 
-    textSwitchKey = GetDlgItem(hDlg, IDC_SWITCH_KEY_KEY);
-    createToolTip(textSwitchKey, IDS_STRING_SWITCH_KEY);
-
     checkBeep = GetDlgItem(hDlg, IDC_CHECK_SWITCH_KEY_BEEP);
     createToolTip(checkBeep, IDS_STRING_BEEP);
 
@@ -225,7 +222,7 @@ INT_PTR MainControlDialog::eventProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM
             int msgboxID = MessageBox(
                 hDlg,
                 _T("Bạn có chắc chắn muốn thiết lập lại cài đặt gốc?"),
-                _T("OpenKey"),
+                _T("ATKey"),
                 MB_ICONEXCLAMATION | MB_YESNO
             );
             if (msgboxID == IDYES) {
@@ -240,7 +237,10 @@ INT_PTR MainControlDialog::eventProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM
             onUpdateButton();
             break;
         case IDC_BUTTON_GO_SOURCE_CODE:
-            ShellExecute(NULL, _T("open"), _T("https://github.com/tuyenvm/OpenKey"), NULL, NULL, SW_SHOWNORMAL);
+            //GPL yeu cau cung cap ma nguon cua CHINH ban da sua, khong phai ma
+            //nguon cua ban goc. Day la repo cua ATKey; atkey.org/source.zip la
+            //ban chup du phong cho ai khong dung git.
+            ShellExecute(NULL, _T("open"), _T("https://github.com/Tailee1/atkey"), NULL, NULL, SW_SHOWNORMAL);
             break;
         default:
             if (HIWORD(wParam) == CBN_SELCHANGE) {
@@ -248,13 +248,6 @@ INT_PTR MainControlDialog::eventProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM
             }
             else if (HIWORD(wParam) == BN_CLICKED) {
                 this->onCheckboxClicked((HWND)lParam);
-            }
-            else if (HIWORD(wParam) == EN_CHANGE) {
-                _lastKeyCode = OpenKeyManager::_lastKeyCode;
-                if (_lastKeyCode > 0) {
-                    OpenKeyManager::_lastKeyCode = 0;
-                    this->onCharacter((HWND)lParam, _lastKeyCode);
-                }
             }
             break;
         }
@@ -269,11 +262,9 @@ INT_PTR MainControlDialog::eventProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM
         case NM_RETURN: {
             PNMLINK link = (PNMLINK)lParam;
             if (link->hdr.idFrom == IDC_SYSLINK_HOME_PAGE)
-                ShellExecute(NULL, _T("open"), _T("http://open-key.org"), NULL, NULL, SW_SHOWNORMAL);
+                ShellExecute(NULL, _T("open"), _T("https://atkey.org"), NULL, NULL, SW_SHOWNORMAL);
             else if (link->hdr.idFrom == IDC_SYSLINK_FANPAGE)
-                ShellExecute(NULL, _T("open"), _T("https://www.facebook.com/OpenKeyVN"), NULL, NULL, SW_SHOWNORMAL);
-            else if (link->hdr.idFrom == IDC_SYSLINK_AUTHOR_EMAIL)
-                ShellExecute(NULL, _T("open"), _T("mailto:maivutuyen.91@gmail.com"), NULL, NULL, SW_SHOWNORMAL);
+                ShellExecute(NULL, _T("open"), _T("https://github.com/tuyenvm/OpenKey"), NULL, NULL, SW_SHOWNORMAL);
             break;
         }
         }
@@ -331,8 +322,15 @@ void MainControlDialog::fillData() {
     SendMessage(checkAlt, BM_SETCHECK, HAS_OPTION(vSwitchKeyStatus) ? 1 : 0, 0);
     SendMessage(checkWin, BM_SETCHECK, HAS_COMMAND(vSwitchKeyStatus) ? 1 : 0, 0);
     SendMessage(checkShift, BM_SETCHECK, HAS_SHIFT(vSwitchKeyStatus) ? 1 : 0, 0);
-    setSwitchKeyText(textSwitchKey, (vSwitchKeyStatus >> 24) & 0xFF);
     SendMessage(checkBeep, BM_SETCHECK, HAS_BEEP(vSwitchKeyStatus) ? 1 : 0, 0);
+
+    //Dung lai thu tu tick tu cau hinh da luu. OpenKeyInit da dam bao dung 2 co.
+    _switchModOrder.clear();
+    const int switchBits[4] = { 0x100, 0x200, 0x400, 0x800 };
+    for (int i = 0; i < 4; i++) {
+        if (vSwitchKeyStatus & switchBits[i])
+            _switchModOrder.push_back(i);
+    }
 
     SendMessage(checkVietnamese, BM_SETCHECK, vLanguage, 0);
     SendMessage(checkEnglish, BM_SETCHECK, !vLanguage, 0);
@@ -377,14 +375,6 @@ void MainControlDialog::fillData() {
     SendDlgItemMessage(hTabPage4, IDC_STATIC_APP_VERSION_INFO, WM_SETTEXT, 0, LPARAM(buffer));
 }
 
-void MainControlDialog::setSwitchKey(const unsigned short& code) {
-    vSwitchKeyStatus &= 0xFFFFFF00;
-    vSwitchKeyStatus |= code;
-    vSwitchKeyStatus &= 0x00FFFFFF;
-    vSwitchKeyStatus |= ((unsigned int)code << 24);
-    APP_SET_DATA(vSwitchKeyStatus, vSwitchKeyStatus);
-}
-
 void MainControlDialog::onComboBoxSelected(const HWND& hCombobox, const int& comboboxId) {
     if (hCombobox == comboBoxInputType) {
         APP_SET_DATA(vInputType, (int)SendMessage(hCombobox, CB_GETCURSEL, 0, 0));
@@ -401,29 +391,8 @@ void MainControlDialog::onComboBoxSelected(const HWND& hCombobox, const int& com
 
 void MainControlDialog::onCheckboxClicked(const HWND& hWnd) {
     int val = 0;
-    if (hWnd == checkCtrl) {
-        val = (int)SendMessage(checkCtrl, BM_GETCHECK, 0, 0);
-        vSwitchKeyStatus &= (~0x100);
-        vSwitchKeyStatus |= val << 8;
-        APP_SET_DATA(vSwitchKeyStatus, vSwitchKeyStatus);
-    }
-    else if (hWnd == checkAlt) {
-        val = (int)SendMessage(checkAlt, BM_GETCHECK, 0, 0);
-        vSwitchKeyStatus &= (~0x200);
-        vSwitchKeyStatus |= val << 9;
-        APP_SET_DATA(vSwitchKeyStatus, vSwitchKeyStatus);
-    }
-    else if (hWnd == checkWin) {
-        val = (int)SendMessage(checkWin, BM_GETCHECK, 0, 0);
-        vSwitchKeyStatus &= (~0x400);
-        vSwitchKeyStatus |= val << 10;
-        APP_SET_DATA(vSwitchKeyStatus, vSwitchKeyStatus);
-    }
-    else if (hWnd == checkShift) {
-        val = (int)SendMessage(checkShift, BM_GETCHECK, 0, 0);
-        vSwitchKeyStatus &= (~0x800);
-        vSwitchKeyStatus |= val << 11;
-        APP_SET_DATA(vSwitchKeyStatus, vSwitchKeyStatus);
+    if (hWnd == checkCtrl || hWnd == checkAlt || hWnd == checkWin || hWnd == checkShift) {
+        onSwitchModifierClicked(hWnd);
     }
     else if (hWnd == checkBeep) {
         val = (int)SendMessage(checkBeep, BM_GETCHECK, 0, 0);
@@ -564,32 +533,48 @@ void MainControlDialog::onCheckboxClicked(const HWND& hWnd) {
     SystemTrayHelper::updateData();
 }
 
-void MainControlDialog::onCharacter(const HWND& hWnd, const UINT16& keyCode) {
-    if (keyCode == 0) return;
-    if (hWnd == textSwitchKey) {
-        UINT16 code = GET_SWITCH_KEY(vSwitchKeyStatus);
-        if (keyCode == VK_DELETE || keyCode == VK_BACK) {
-            code = 0xFE;
-        }
-        else if (keyCodeToCharacter(keyCode) != 0) {
-            code = keyCode;
-        }
-        setSwitchKey(code);
-        setSwitchKeyText(hWnd, code);
-    }
-}
+//ATKey bat buoc phim chuyen Viet-Anh gom DUNG 2 trong 4 phim bo tro.
+//  - Tick phim thu 3  -> phim duoc tick som nhat tu dong bo ra.
+//  - Bo tick khi dang co 2 -> khong cho, tra lai nguyen trang.
+//Nho vay khong bao gio roi vao trang thai 1 phim (de bam nham) hay 0 phim
+//(EMPTY_HOTKEY, hotkey bi vo hieu ma nguoi dung khong biet vi sao).
+void MainControlDialog::onSwitchModifierClicked(const HWND& hWnd) {
+    const HWND wnds[4] = { checkCtrl, checkAlt, checkWin, checkShift };
+    const int  bits[4] = { 0x100, 0x200, 0x400, 0x800 };
 
-void MainControlDialog::setSwitchKeyText(const HWND& hWnd, const UINT16& keyCode) {
-    if (keyCode == KEY_SPACE) {
-        SetWindowText(hWnd, _T("Space"));
+    int idx = -1;
+    for (int i = 0; i < 4; i++) {
+        if (wnds[i] == hWnd)
+            idx = i;
     }
-    else if (keyCode == 0xFE) {
-        SetWindowText(hWnd, _T(""));
+    if (idx < 0)
+        return;
+
+    if (SendMessage(hWnd, BM_GETCHECK, 0, 0) == BST_UNCHECKED) {
+        SendMessage(hWnd, BM_SETCHECK, BST_CHECKED, 0);
+        return;
     }
-    else {
-        Uint16 key[] = { keyCode, 0 };
-        SetWindowText(hWnd, (LPCWSTR)&key);
+
+    for (size_t i = 0; i < _switchModOrder.size(); i++) {
+        if (_switchModOrder[i] == idx) {
+            _switchModOrder.erase(_switchModOrder.begin() + i);
+            break;
+        }
     }
+    _switchModOrder.push_back(idx);
+
+    while (_switchModOrder.size() > 2) {
+        int oldest = _switchModOrder.front();
+        _switchModOrder.erase(_switchModOrder.begin());
+        SendMessage(wnds[oldest], BM_SETCHECK, BST_UNCHECKED, 0);
+    }
+
+    vSwitchKeyStatus &= ~0xF00;
+    for (size_t i = 0; i < _switchModOrder.size(); i++) {
+        vSwitchKeyStatus |= bits[_switchModOrder[i]];
+    }
+    APP_SET_DATA(vSwitchKeyStatus, vSwitchKeyStatus);
+    SystemTrayHelper::updateData();
 }
 
 void MainControlDialog::onTabIndexChanged() {
@@ -606,28 +591,40 @@ void MainControlDialog::onUpdateButton() {
     if (OpenKeyManager::checkUpdate(newVersion)) {
         WCHAR msg[256];
         wsprintf(msg,
-            TEXT("OpenKey Có phiên bản mới (%s), bạn có muốn cập nhật không?"),
+            TEXT("ATKey Có phiên bản mới (%s), bạn có muốn cập nhật không?"),
             utf8ToWideString(newVersion).c_str());
 
         int msgboxID = MessageBox(
             hDlg,
             msg,
-            _T("OpenKey Update"),
+            _T("ATKey Update"),
             MB_ICONEXCLAMATION | MB_YESNO
         );
         if (msgboxID == IDYES) {
             //Call OpenKeyUpdate
-            WCHAR path[MAX_PATH];
-            GetCurrentDirectory(MAX_PATH, path);
-            wsprintf(path, TEXT("%s\\OpenKeyUpdate.exe"), path);
-            ShellExecute(0, L"", path, 0, 0, SW_SHOWNORMAL);
+            //Dung thu muc chua exe chu khong phai GetCurrentDirectory: khi ATKey chay
+            //luc khoi dong Windows thi thu muc hien hanh thuong la System32, updater
+            //se ghi file ra nham cho. Truyen duong dan exe hien tai sang de updater
+            //ghi de dung file dang chay, bat ke ten la ATKey64.exe hay atkey.exe.
+            wstring selfPath = OpenKeyHelper::getFullPath();
+            wstring appDir = selfPath.substr(0, selfPath.find_last_of(L'\\'));
+            wstring updaterPath = appDir + L"\\OpenKeyUpdate.exe";
+            wstring updaterArgs = L"\"" + selfPath + L"\"";
+            //Chi thoat khi da chay duoc updater. Neu nguoi dung chi tai moi file exe
+            //ma khong co OpenKeyUpdate.exe ben canh thi khong duoc thoat, neu khong
+            //ho bam "Kiem tra ban moi" xong thay ung dung bien mat ma chua cap nhat gi.
+            HINSTANCE started = ShellExecute(0, L"", updaterPath.c_str(), updaterArgs.c_str(), appDir.c_str(), SW_SHOWNORMAL);
+            if ((INT_PTR)started <= 32) {
+                MessageBox(0, _T("Thiếu tập tin OpenKeyUpdate.exe nên không thể tự cập nhật.\nVui lòng tải bản mới thủ công tại https://atkey.org"), _T("ATKey Update"), MB_ICONEXCLAMATION | MB_OK);
+                return;
+            }
 
             AppDelegate::getInstance()->onOpenKeyExit();
         }
 
     }
     else {
-        MessageBox(hDlg, _T("Bạn đang dùng phiên bản mới nhất!"), _T("OpenKey Update"), MB_OK);
+        MessageBox(hDlg, _T("Bạn đang dùng phiên bản mới nhất!"), _T("ATKey Update"), MB_OK);
     }
     EnableWindow(hUpdateButton, true);
 }
@@ -637,8 +634,8 @@ void MainControlDialog::requestRestartAsAdmin() {
     if (vRunAsAdmin && !IsUserAnAdmin()) {
         int msgboxID = MessageBox(
             hDlg,
-            _T("Bạn cần phải khởi động lại OpenKey để kích hoạt chế độ Admin!\nBạn có muốn khởi động lại OpenKey không?"),
-            _T("OpenKey"),
+            _T("Bạn cần phải khởi động lại ATKey để kích hoạt chế độ Admin!\nBạn có muốn khởi động lại ATKey không?"),
+            _T("ATKey"),
             MB_ICONEXCLAMATION | MB_YESNO
         );
         if (msgboxID == IDYES) {

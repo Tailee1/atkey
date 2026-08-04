@@ -75,6 +75,14 @@ void BaseDialog::show() {
 }
 
 void BaseDialog::bringOnTop() {
+	//Dong hop thoai bang nut X chi AN cua so chu khong huy no, va con tro
+	//dialog trong AppDelegate van khac NULL. Neu o day chi goi
+	//SetForegroundWindow thi cua so dang an se khong bao gio hien lai duoc,
+	//nguoi dung buoc phai khoi dong lai ung dung moi mo lai duoc bang dieu khien.
+	if (IsIconic(hDlg))
+		ShowWindow(hDlg, SW_RESTORE);
+	else if (!IsWindowVisible(hDlg))
+		ShowWindow(hDlg, SW_SHOW);
 	SetForegroundWindow(hDlg);
 	SetActiveWindow(hDlg);
 }

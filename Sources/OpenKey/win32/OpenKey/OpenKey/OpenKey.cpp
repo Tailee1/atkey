@@ -13,9 +13,9 @@ redistribute your new version, it MUST be open source.
 -----------------------------------------------------------*/
 #include "stdafx.h"
 #include "AppDelegate.h"
+#include "JapaneseIME.h"
 
 #pragma comment(lib, "imm32")
-#define IMC_GETOPENSTATUS 0x0005
 
 #define MASK_SHIFT				0x01
 #define MASK_CONTROL			0x02
@@ -75,6 +75,7 @@ void OpenKeyFree() {
 	UnhookWindowsHookEx(hMouseHook);
 	UnhookWindowsHookEx(hKeyboardHook);
 	UnhookWinEvent(hSystemEvent);
+	jpImeShutdown();
 }
 
 void OpenKeyInit() {
@@ -85,7 +86,23 @@ void OpenKeyInit() {
 	APP_GET_DATA(vCheckSpelling, 1);
 	APP_GET_DATA(vUseModernOrthography, 0);
 	APP_GET_DATA(vQuickTelex, 0);
-	APP_GET_DATA(vSwitchKeyStatus, 0x7A000206);
+	APP_GET_DATA(vSwitchKeyStatus, 0xFE0009FE);
+	//ATKey da bo o nhap phim phu, chi con 4 phim bo tro. Ep ma phim ve 0xFE
+	//("khong co phim phu") de cau hinh cu - hoac gia tri rac nhu 0x06
+	//(VK_XBUTTON2, nut chuot) - khong lam hotkey khong bao gio bam duoc.
+	//Giu nguyen bit 8-15: co Ctrl/Alt/Win/Shift va co Beep.
+	vSwitchKeyStatus = (vSwitchKeyStatus & 0x0000FF00) | 0xFE | (0xFE << 24);
+	//Phim chuyen phai gom dung 2 trong 4 phim bo tro. Cau hinh cu co the co 0,
+	//1 hoac 3 co -> dua ve mac dinh Ctrl + Shift.
+	int modCount = 0;
+	for (int bit = 0x100; bit <= 0x800; bit <<= 1) {
+		if (vSwitchKeyStatus & bit)
+			modCount++;
+	}
+	if (modCount != 2) {
+		vSwitchKeyStatus = (vSwitchKeyStatus & ~0xF00) | 0x100 | 0x800;
+	}
+	APP_SET_DATA(vSwitchKeyStatus, vSwitchKeyStatus);
 	APP_GET_DATA(vRestoreIfWrongSpelling, 1);
 	APP_GET_DATA(vFixRecommendBrowser, 1);
 	APP_GET_DATA(vUseMacro, 1);
@@ -167,6 +184,9 @@ void OpenKeyInit() {
 	hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, keyboardHookProcess, hInstance, 0);
 	hMouseHook = SetWindowsHookEx(WH_MOUSE_LL, mouseHookProcess, hInstance, 0);
 	hSystemEvent = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, NULL, winEventProcCallback, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+
+	//theo doi che do IME tieng Nhat
+	jpImeInit();
 }
 
 void saveSmartSwitchKeyData() {
@@ -496,14 +516,6 @@ LRESULT CALLBACK keyboardHookProcess(int nCode, WPARAM wParam, LPARAM lParam) {
 		return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
 	}
 	
-	//ignore if IME pad is open when typing Japanese/Chinese...
-	HWND hWnd = GetForegroundWindow();
-	HWND hIME = ImmGetDefaultIMEWnd(hWnd);
-	LRESULT isImeON = SendMessage(hIME, WM_IME_CONTROL, IMC_GETOPENSTATUS, 0);
-	if (isImeON) {
-		return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
-	}
-	
 	//check modifier key
 	if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
 		//LOG(L"Key down: %d\n", keyboardData->vkCode);
@@ -514,6 +526,23 @@ LRESULT CALLBACK keyboardHookProcess(int nCode, WPARAM wParam, LPARAM lParam) {
 	}
 	if (!_isFlagKey && wParam != WM_KEYUP && wParam != WM_SYSKEYUP)
 		_keycode = (Uint16)keyboardData->vkCode;
+
+	//cac phim doi che do cua ban phim Nhat -> yeu cau doc lai trang thai IME.
+	//Chi bao hieu cho thread nen, khong he goi SendMessage o day.
+	if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) {
+		switch (keyboardData->vkCode) {
+		case VK_KANJI:			//半角/全角
+		case VK_KANA:			//カタカナ/ひらがな
+		case VK_CONVERT:		//変換
+		case VK_NONCONVERT:		//無変換
+			jpImeRequestRefresh();
+			break;
+		case VK_SPACE:			//Win+Space doi keyboard layout
+			if (_flag & MASK_WIN)
+				jpImeRequestRefresh();
+			break;
+		}
+	}
 
 	//switch language shortcut; convert hotkey
 	if ((wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) && !_isFlagKey && _keycode != 0) {
@@ -558,6 +587,14 @@ LRESULT CALLBACK keyboardHookProcess(int nCode, WPARAM wParam, LPARAM lParam) {
 			_hasJustUsedHotKey = false;
 		}
 		_keycode = 0;
+		return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
+	}
+
+	//IME tieng Nhat dang o che do ひらがな/カタカナ -> nhuong toan bo phim cho no.
+	//Chi doc bien cache, khong goi SendMessage trong hook nay (xem JapaneseIME.h).
+	//Dat sau phan phim tat de nguoi dung van doi duoc Viet/Anh khi IME Nhat dang bat.
+	if (jpImeIsNativeMode()) {
+		startNewSession();
 		return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
 	}
 
@@ -666,12 +703,21 @@ LRESULT CALLBACK mouseHookProcess(int nCode, WPARAM wParam, LPARAM lParam) {
 		if (IS_DOUBLE_CODE(vCodeTable)) { //VNI
 			_syncKey.clear();
 		}
+		//Nguoi dung co the doi che do IME bang chuot (bam vao chi bao あ/A tren
+		//tray), va cu bam chuot cung co the doi cua so focus. Chi bao hieu cho
+		//thread nen; event auto-reset se gop nhieu lan bao hieu lam mot.
+		jpImeRequestRefresh();
 		break;
 	}
 	return CallNextHookEx(hMouseHook, nCode, wParam, lParam);
 }
 
 VOID CALLBACK winEventProcCallback(HWINEVENTHOOK hWinEventHook, DWORD dwEvent, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime) {
+	//Trang thai IME la rieng theo tung cua so nen phai doc lai moi lan doi app.
+	//Dat truoc moi dieu kien ben duoi: khong duoc phu thuoc vUseSmartSwitchKey,
+	//va khong duoc dinh vao cai return som danh cho explorer.exe.
+	jpImeRequestRefresh();
+
 	//smart switch key
 	if (vUseSmartSwitchKey || vRememberCode) {
 		string& exe = OpenKeyHelper::getFrontMostAppExecuteName();

@@ -50,11 +50,11 @@ INT_PTR AboutDialog::eventProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		case NM_RETURN: {
 			PNMLINK link = (PNMLINK)lParam;
 			if (link->hdr.idFrom == IDC_SYSLINK_HOME_PAGE)
-				ShellExecute(NULL, _T("open"), _T("https://github.com/tuyenvm/OpenKey"), NULL, NULL, SW_SHOWNORMAL);
+				ShellExecute(NULL, _T("open"), _T("https://atkey.org"), NULL, NULL, SW_SHOWNORMAL);
 			else if (link->hdr.idFrom == IDC_SYSLINK_NEW_VERSION)
-				ShellExecute(NULL, _T("open"), _T("https://github.com/tuyenvm/OpenKey/releases"), NULL, NULL, SW_SHOWNORMAL);
+				ShellExecute(NULL, _T("open"), _T("https://atkey.org"), NULL, NULL, SW_SHOWNORMAL);
 			else if (link->hdr.idFrom == IDC_SYSLINK_FANPAGE)
-				ShellExecute(NULL, _T("open"), _T("https://www.facebook.com/OpenKeyVN"), NULL, NULL, SW_SHOWNORMAL);
+				ShellExecute(NULL, _T("open"), _T("https://github.com/tuyenvm/OpenKey"), NULL, NULL, SW_SHOWNORMAL);
 		}
 		break;
 		}
@@ -89,27 +89,39 @@ void AboutDialog::onUpdateButton() {
 	if (OpenKeyManager::checkUpdate(newVersion)) {
 		WCHAR msg[256];
 		wsprintf(msg, 
-			TEXT("OpenKey Có phiên bản mới (%s), bạn có muốn cập nhật không?"),
+			TEXT("ATKey Có phiên bản mới (%s), bạn có muốn cập nhật không?"),
 			utf8ToWideString(newVersion).c_str());
 
 		int msgboxID = MessageBox(
 			hDlg,
 			msg,
-			_T("OpenKey Update"),
+			_T("ATKey Update"),
 			MB_ICONEXCLAMATION | MB_YESNO
 		);
 		if (msgboxID == IDYES) {
 			//Call OpenKeyUpdate
-			WCHAR path[MAX_PATH];
-			GetCurrentDirectory(MAX_PATH, path);
-			wsprintf(path, TEXT("%s\\OpenKeyUpdate.exe"), path);
-			ShellExecute(0, L"", path, 0, 0, SW_SHOWNORMAL);
+			//Dung thu muc chua exe chu khong phai GetCurrentDirectory: khi ATKey chay
+			//luc khoi dong Windows thi thu muc hien hanh thuong la System32, updater
+			//se ghi file ra nham cho. Truyen duong dan exe hien tai sang de updater
+			//ghi de dung file dang chay, bat ke ten la ATKey64.exe hay atkey.exe.
+			wstring selfPath = OpenKeyHelper::getFullPath();
+			wstring appDir = selfPath.substr(0, selfPath.find_last_of(L'\\'));
+			wstring updaterPath = appDir + L"\\OpenKeyUpdate.exe";
+			wstring updaterArgs = L"\"" + selfPath + L"\"";
+			//Chi thoat khi da chay duoc updater. Neu nguoi dung chi tai moi file exe
+			//ma khong co OpenKeyUpdate.exe ben canh thi khong duoc thoat, neu khong
+			//ho bam "Kiem tra ban moi" xong thay ung dung bien mat ma chua cap nhat gi.
+			HINSTANCE started = ShellExecute(0, L"", updaterPath.c_str(), updaterArgs.c_str(), appDir.c_str(), SW_SHOWNORMAL);
+			if ((INT_PTR)started <= 32) {
+			    MessageBox(0, _T("Thiếu tập tin OpenKeyUpdate.exe nên không thể tự cập nhật.\nVui lòng tải bản mới thủ công tại https://atkey.org"), _T("ATKey Update"), MB_ICONEXCLAMATION | MB_OK);
+			    return;
+			}
 
 			AppDelegate::getInstance()->onOpenKeyExit();
 		}
 		
 	} else {
-		MessageBox(hDlg, _T("Bạn đang dùng phiên bản mới nhất!"), _T("OpenKey Update"), MB_OK);
+		MessageBox(hDlg, _T("Bạn đang dùng phiên bản mới nhất!"), _T("ATKey Update"), MB_OK);
 	}
 	EnableWindow(hUpdateButton, true);
 }

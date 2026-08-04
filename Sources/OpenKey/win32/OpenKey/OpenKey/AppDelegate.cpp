@@ -23,7 +23,10 @@ int vCodeTable = 0;
 int vCheckSpelling = 1;
 int vUseModernOrthography = 1;
 int vQuickTelex = 0;
-#define DEFAULT_SWITCH_STATUS 0x5A00025A //default option + z
+//ATKey chi dung phim bo tro de chuyen Viet-Anh. 0xFE o byte thap = "khong co
+//phim phu"; 0x0900 = bit 8 (Ctrl) + bit 11 (Shift). Byte cao la ban sao cua ma
+//phim, ban goc dung no de hien thi.
+#define DEFAULT_SWITCH_STATUS 0xFE0009FE //Ctrl + Shift, khong dung phim phu
 int vSwitchKeyStatus = DEFAULT_SWITCH_STATUS;
 int vRestoreIfWrongSpelling = 1;
 int vFixRecommendBrowser = 0;
@@ -64,21 +67,33 @@ void AppDelegate::checkUpdate() {
 	if (OpenKeyManager::checkUpdate(newVersion)) {
 		WCHAR msg[256];
 		wsprintf(msg,
-			TEXT("OpenKey Có phiên bản mới (%s), bạn có muốn cập nhật không?"),
+			TEXT("ATKey Có phiên bản mới (%s), bạn có muốn cập nhật không?"),
 			utf8ToWideString(newVersion).c_str());
 
 		int msgboxID = MessageBox(
 			0,
 			msg,
-			_T("OpenKey Update"),
+			_T("ATKey Update"),
 			MB_ICONEXCLAMATION | MB_YESNO
 		);
 		if (msgboxID == IDYES) {
 			//Call OpenKeyUpdate
-			WCHAR path[MAX_PATH];
-			GetCurrentDirectory(MAX_PATH, path);
-			wsprintf(path, TEXT("%s\\OpenKeyUpdate.exe"), path);
-			ShellExecute(0, L"", path, 0, 0, SW_SHOWNORMAL);
+			//Dung thu muc chua exe chu khong phai GetCurrentDirectory: khi ATKey chay
+			//luc khoi dong Windows thi thu muc hien hanh thuong la System32, updater
+			//se ghi file ra nham cho. Truyen duong dan exe hien tai sang de updater
+			//ghi de dung file dang chay, bat ke ten la ATKey64.exe hay atkey.exe.
+			wstring selfPath = OpenKeyHelper::getFullPath();
+			wstring appDir = selfPath.substr(0, selfPath.find_last_of(L'\\'));
+			wstring updaterPath = appDir + L"\\OpenKeyUpdate.exe";
+			wstring updaterArgs = L"\"" + selfPath + L"\"";
+			//Chi thoat khi da chay duoc updater. Neu nguoi dung chi tai moi file exe
+			//ma khong co OpenKeyUpdate.exe ben canh thi khong duoc thoat, neu khong
+			//ho bam "Kiem tra ban moi" xong thay ung dung bien mat ma chua cap nhat gi.
+			HINSTANCE started = ShellExecute(0, L"", updaterPath.c_str(), updaterArgs.c_str(), appDir.c_str(), SW_SHOWNORMAL);
+			if ((INT_PTR)started <= 32) {
+			    MessageBox(0, _T("Thiếu tập tin OpenKeyUpdate.exe nên không thể tự cập nhật.\nVui lòng tải bản mới thủ công tại https://atkey.org"), _T("ATKey Update"), MB_ICONEXCLAMATION | MB_OK);
+			    return;
+			}
 			AppDelegate::getInstance()->onOpenKeyExit();
 		}
 
@@ -263,7 +278,7 @@ void AppDelegate::onQuickConvert() {
 		if (!convertToolDontAlertWhenCompleted) {
 			TCHAR msg[256];
 			LoadString(hInstance, IDS_STRING_CONVERT_COMPLETED, msg, 256);
-			MessageBox(NULL, msg, _T("OpenKey"), MB_OK);
+			MessageBox(NULL, msg, _T("ATKey"), MB_OK);
 		}
 	}
 }

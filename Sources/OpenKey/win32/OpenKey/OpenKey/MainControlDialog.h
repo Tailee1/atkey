@@ -19,7 +19,7 @@ private:
 	HWND hTab, hTabPage1, hTabPage2, hTabPage3, hTabPage4;
 	HWND comboBoxInputType;
 	HWND comboBoxTableCode;
-	HWND checkCtrl, checkAlt, checkWin, checkShift, textSwitchKey, checkBeep;
+	HWND checkCtrl, checkAlt, checkWin, checkShift, checkBeep;
 	HWND checkVietnamese, checkEnglish;
 	HWND checkModernOrthorgraphy, checkFixRecommendBrowser, checkShowOnStartup, checkRunWithWindows,
 		checkSpelling, checkRestoreIfWrongSpelling, checkUseClipboard, checkModernIcon,
@@ -28,12 +28,14 @@ private:
 	HWND checkCreateDesktopShortcut, checkCheckNewVersion, checkRunAsAdmin, checkSupportMetroApp, checkMacroAutoCaps;
 	HWND checkFixChromium, checkRememberTableCode, checkTempOffOpenKey, checkAllowOtherLanguages;
 	HWND hUpdateButton;
+	//Thu tu cac phim bo tro dang duoc tick, cu nhat dung truoc. Dung de biet
+	//phim nao phai bo ra khi nguoi dung tick phim thu 3.
+	vector<int> _switchModOrder;
 private:
 	void initDialog();
 	void onComboBoxSelected(const HWND& hCombobox, const int& comboboxId);
 	void onCheckboxClicked(const HWND& hWnd);
-	void onCharacter(const HWND& hWnd, const UINT16& keyCode);
-	void setSwitchKeyText(const HWND& hWnd, const UINT16 & keyCode);
+	void onSwitchModifierClicked(const HWND& hWnd);
 	void onTabIndexChanged();
 	void onUpdateButton();
 	void requestRestartAsAdmin();
@@ -44,7 +46,6 @@ public:
 	MainControlDialog(const HINSTANCE& hInstance, const int& resourceId);
 	virtual ~MainControlDialog();
 	virtual void fillData() override;
-	void setSwitchKey(const unsigned short& code);
 
 	friend INT_PTR CALLBACK tabPageEventProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 };

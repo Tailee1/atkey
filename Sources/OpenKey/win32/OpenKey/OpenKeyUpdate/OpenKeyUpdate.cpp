@@ -15,6 +15,7 @@ redistribute your new version, it MUST be open source.
 #include "framework.h"
 #include "OpenKeyUpdate.h"
 #include <Urlmon.h>
+#include <shellapi.h>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -25,13 +26,30 @@ using namespace std;
 INT_PTR CALLBACK MainDialogProcess(HWND, UINT, WPARAM, LPARAM);
 void StartUpdate();
 HWND hDlg;
+
+//Duong dan day du cua file exe can ghi de, do ATKey truyen sang qua dong lenh.
+//Nho vay updater ghi de dung file dang chay du no ten ATKey64.exe hay atkey.exe.
+wstring gTargetExe;
+
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
                      _In_ LPWSTR    lpCmdLine,
                      _In_ int       nCmdShow)
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
+
+	gTargetExe = lpCmdLine ? lpCmdLine : L"";
+	//ShellExecute boc duong dan trong dau nhay kep, bo di truoc khi dung
+	if (gTargetExe.size() >= 2 && gTargetExe.front() == L'"' && gTargetExe.back() == L'"') {
+		gTargetExe = gTargetExe.substr(1, gTargetExe.size() - 2);
+	}
+	if (gTargetExe.empty()) {
+		//Ban cu khong truyen tham so: doan theo thu muc chua updater.
+		WCHAR self[MAX_PATH];
+		GetModuleFileName(NULL, self, MAX_PATH);
+		wstring dir(self);
+		gTargetExe = dir.substr(0, dir.find_last_of(L'\\')) + L"\\ATKey64.exe";
+	}
 
 	hDlg = CreateDialogParam(hInstance, MAKEINTRESOURCE(IDD_DIALOG_UPDATER), 0, MainDialogProcess, 0);
 	ShowWindow(hDlg, SW_SHOWNORMAL);
@@ -72,60 +90,44 @@ INT_PTR CALLBACK MainDialogProcess(HWND hDlg, UINT message, WPARAM wParam, LPARA
 }
 
 DWORD WINAPI UpdateThreadFunction(LPVOID lpParam) {
-	WCHAR path[MAX_PATH];
-	WCHAR currentDir[MAX_PATH];
-	GetCurrentDirectory(MAX_PATH, currentDir);
-	wsprintf(path, TEXT("%s\\_OpenKey.tempf"), currentDir);
-	HRESULT res = URLDownloadToFile(NULL, L"https://raw.githubusercontent.com/tuyenvm/OpenKey/master/version.json", path, 0, NULL);
+	//Tai file tam vao CUNG thu muc voi exe dich - MoveFileEx chi ghi de duoc
+	//trong cung o dia, va GetCurrentDirectory khong dung duoc o day: khi ATKey
+	//chay luc khoi dong Windows thi thu muc hien hanh thuong la System32.
+	wstring targetDir = gTargetExe.substr(0, gTargetExe.find_last_of(L'\\'));
+	wstring tmp = targetDir + L"\\_ATKeyUpdate.tmp";
 
-	wstring data;
-	if (res == S_OK) {
-		std::wifstream t(path);
-		std::wstringstream buffer;
-		buffer << t.rdbuf();
-		t.close();
-		DeleteFile(path);
-		data = buffer.str();
-	} else {
-		MessageBox(hDlg, _T("Có lỗi trong quá trình cập nhật, vui lòng thử lại sau!"), _T("OpenKey Update"), MB_OK);
+	//ATKey phat hanh thang file exe tai mot duong dan co dinh, khong dong goi zip.
+	//Vi vay khong can tai version.json ve de ghep ten file nua: ung dung chinh da
+	//so phien ban truoc khi goi toi day roi.
+	DeleteFile(tmp.c_str());
+	HRESULT res = URLDownloadToFile(NULL, L"https://atkey.org/atkey.exe", tmp.c_str(), 0, NULL);
+
+	if (res != S_OK) {
+		MessageBox(hDlg, _T("Có lỗi trong quá trình cập nhật, vui lòng thử lại sau!"), _T("ATKey Update"), MB_OK);
 		ExitProcess(0);
 		return 0;
 	}
 
-	//simple parse
-	data = data.substr(data.find(L"latestWinVersion"));
-	data = data.substr(data.find(L"\"versionName\":"));
-	data = data.substr(14);
-	data = data.substr(data.find(L"\""));
-	data = data.substr(1);
-	wstring versionName = data.substr(0, data.find(L"\""));
-	
-	//download zip file
-	WCHAR updateUrl[MAX_PATH];
-	wsprintf(updateUrl, TEXT("https://github.com/tuyenvm/OpenKey/releases/download/%s/OpenKey%s-Windows.zip"),
-		versionName.c_str(),
-		versionName.c_str());
-	wsprintf(path, TEXT("%s\\_OpenKeyUpdate.zip"), currentDir);
-	res = URLDownloadToFile(NULL, updateUrl, path, 0, NULL);
-
-	if (res == S_OK) {
-		//remove old file
-		DeleteFile(L"OpenKey64.exe");
-		//extract zip file
-		WinExec("powershell.exe -NoP -NonI -Command \"Expand-Archive '.\\_OpenKeyUpdate.zip' '.\\_OpenKeyUpdate'\" ", SW_HIDE);
-		Sleep(5000);
-		MoveFile(L"_OpenKeyUpdate\\OpenKey64.exe", L"OpenKey64.exe");
-		DeleteFile(path);
-		DeleteFile(L"_OpenKeyUpdate\\OpenKeyUpdate.exe");
-		DeleteFile(L"_OpenKeyUpdate\\OpenKey64.exe");
-		DeleteFile(L"_OpenKeyUpdate\\OpenKey32.exe");
-		RemoveDirectory(L".\\_OpenKeyUpdate");
-		MessageBox(hDlg, _T("Bạn đã cập nhật OpenKey bản mới nhất thành công!"), _T("OpenKey Update"), MB_OK);
-		ExitProcess(0);
-	} else {
-		MessageBox(hDlg, _T("Có lỗi trong quá trình cập nhật, vui lòng thử lại sau!"), _T("OpenKey Update"), MB_OK);
-		ExitProcess(0);
+	//Ung dung chinh vua thoat nhung file exe cua no co the con bi khoa vai giay.
+	//Ghi de bang MoveFileEx thay vi xoa truoc roi chep sau: neu xoa duoc ma buoc
+	//sau that bai thi nguoi dung mat han ung dung. Ban goc mac dung loi nay.
+	bool replaced = false;
+	for (int i = 0; i < 20; i++) {
+		if (MoveFileEx(tmp.c_str(), gTargetExe.c_str(), MOVEFILE_REPLACE_EXISTING)) {
+			replaced = true;
+			break;
+		}
+		Sleep(500);
 	}
+
+	if (replaced) {
+		MessageBox(hDlg, _T("Bạn đã cập nhật ATKey bản mới nhất thành công!"), _T("ATKey Update"), MB_OK);
+		ShellExecute(0, L"", gTargetExe.c_str(), 0, targetDir.c_str(), SW_SHOWNORMAL);
+	} else {
+		DeleteFile(tmp.c_str());
+		MessageBox(hDlg, _T("Không ghi đè được ATKey. Hãy đóng ATKey rồi thử lại!"), _T("ATKey Update"), MB_OK);
+	}
+	ExitProcess(0);
 	return 0;
 }
 
