@@ -1,18 +1,15 @@
-name: MSBuild
+name: Build ATKey
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "main" ]
+    tags: [ "v*" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
+  workflow_dispatch:
 
 env:
-  # Path to the solution file relative to the root of the project.
   SOLUTION_FILE_PATH: .\Sources\OpenKey\win32\OpenKey
-
-  # Configuration type to build.
-  # You can convert this to a build matrix if you need coverage of multiple configuration types.
-  # https://docs.github.com/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
   BUILD_CONFIGURATION: Release
 
 permissions:
@@ -34,17 +31,50 @@ jobs:
     - name: Build x64
       run: msbuild -m -target:Rebuild -p:Configuration=Release -p:Platform=x64 ${{env.SOLUTION_FILE_PATH}}
 
-    - name: Upload a Build Artifact
+    # Gom binary vao mot thu muc phang. SignPath ky theo artifact nen artifact
+    # phai chi chua thu can ky, khong lan tap tin trung gian cua trinh bien dich.
+    - name: Collect binaries
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Path dist/x64, dist/x86 -Force | Out-Null
+        Copy-Item "${{env.SOLUTION_FILE_PATH}}/x64/Release/ATKey64.exe"       dist/x64/
+        Copy-Item "${{env.SOLUTION_FILE_PATH}}/x64/Release/OpenKeyUpdate.exe" dist/x64/
+        Copy-Item "${{env.SOLUTION_FILE_PATH}}/Release/ATKey32.exe"           dist/x86/
+        Copy-Item "${{env.SOLUTION_FILE_PATH}}/Release/OpenKeyUpdate.exe"     dist/x86/
+        Get-ChildItem dist -Recurse -File |
+          ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name }
+
+    - name: Upload build artifact
       id: upload
       uses: actions/upload-artifact@v4
       with:
-        name: OpenKey
-        path: |
-          ${{env.SOLUTION_FILE_PATH}}/Release/
-          ${{env.SOLUTION_FILE_PATH}}/x64/Release/
+        name: ATKey
+        path: dist/
+
+    # ------------------------------------------------------------------
+    # KY SO QUA SIGNPATH FOUNDATION (mien phi cho du an nguon mo)
+    #
+    # Bo comment khoi duoi sau khi don dang ky tai https://signpath.org/apply
+    # duoc duyet. SignPath se cap organization-id va cac slug; luu API token
+    # vao Settings > Secrets and variables > Actions voi ten SIGNPATH_API_TOKEN.
+    #
+    # SignPath ky truc tiep artifact cua GitHub Actions va doi chieu voi
+    # provenance attestation ben duoi, nho vay chung minh duoc binary sinh ra
+    # tu dung commit cua repo cong khai nay chu khong phai tu may ca nhan.
+    # ------------------------------------------------------------------
+    # - name: Sign with SignPath
+    #   uses: signpath/github-action-submit-signing-request@v1
+    #   with:
+    #     api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+    #     organization-id: '<signpath cap>'
+    #     project-slug: 'atkey'
+    #     signing-policy-slug: 'release-signing'
+    #     github-artifact-id: '${{ steps.upload.outputs.artifact-id }}'
+    #     wait-for-completion: true
+    #     output-artifact-directory: 'signed'
 
     outputs:
-      subject-name: OpenKey
+      subject-name: ATKey
       subject-digest: ${{steps.upload.outputs.artifact-digest}}
 
   attest:
