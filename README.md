@@ -1,105 +1,82 @@
+# ATKey
 
-# [OpenKey](http://open-key.org)
-### [Download bản mới nhất](https://github.com/tuyenvm/OpenKey/releases)
-[![GitHub release](https://img.shields.io/github/v/release/tuyenvm/OpenKey.svg)](https://github.com/tuyenvm/OpenKey/releases/latest)
+Bộ gõ tiếng Việt mã nguồn mở cho Windows, dành cho người Việt dùng bàn phím Nhật.
 
-### Open source Vietnamese Input App for macOS - Bộ gõ tiếng Việt nguồn mở cho macOS.
-Bộ gõ tiếng Việt mới cho macOS, sử dụng kỹ thuật `Backspace`. Loại bỏ lỗi gạch chân khó chịu ở bộ gõ mặc định. Hoàn toàn miễn phí và là nguồn mở, luôn cập nhật và phát triển.
+*Open-source Vietnamese input method editor (IME) for Windows, for Vietnamese
+users working on Japanese keyboards.*
 
-### Mã nguồn của ứng dụng được mở công khai, minh bạch dưới giấy phép GPL. Điều này nghĩa là bạn hoàn toàn có thể tải mã nguồn về tự build, cải tiến theo mục đích của bạn. Nếu bạn tái phân phối bản cải tiến của bạn, thì nó cũng phải là mã nguồn mở và thông báo bản gốc là OpenKey.
+---
 
-### Lưu ý, khi sử dụng OpenKey, bạn nên tắt hẳn bộ gõ khác vì 2 chương trình bộ gõ sẽ xung đột nhau, dẫn đến thao tác không chính xác.
+## Vấn đề mà ATKey giải quyết
 
-![Giao diện](https://raw.githubusercontent.com/tuyenvm/tuyenvm.github.io/master/images/openkey-main-control.png "Main UI")
-![Giao diện](https://raw.githubusercontent.com/tuyenvm/tuyenvm.github.io/master/images/openkey-main-control-2.png "Main UI")
-![Giao diện](https://raw.githubusercontent.com/tuyenvm/tuyenvm.github.io/master/images/openkey-main-control-3.png "Main UI")
-![Menu](https://raw.githubusercontent.com/tuyenvm/tuyenvm.github.io/master/images/openkey-small-control.png "Menu bar")
-![Gõ tắt](https://raw.githubusercontent.com/tuyenvm/tuyenvm.github.io/master/images/openkey-macro.png "Macro")
-![Chuyển mã](https://raw.githubusercontent.com/tuyenvm/tuyenvm.github.io/master/images/openkey-convert-tool.png "ConvertTool")
+Khi bạn dùng bàn phím Nhật và bật IME tiếng Nhật ở chế độ ひらがな hoặc カタカナ,
+bộ gõ tiếng Việt vẫn tiếp tục chen vào giữa chuỗi romaji bạn đang gõ. Kết quả là
+`ka` không ra `か`, chữ bị mất, dấu bị nhảy.
 
-## Hỗ trợ kiểu gõ
-- Telex
-- VNI
-- Simple Telex
+**ATKey tự động ngừng hoạt động khi IME tiếng Nhật đang ở chế độ native**, rồi tự
+bật lại khi bạn quay về 直接入力. Bạn không phải bấm thêm gì.
 
-## Bảng mã thông dụng:
-- Unicode (Unicode dựng sẵn).
-- TCVN3 (ABC).
-- VNI Windows.
-- Unicode Compound (Unicode tổ hợp).
-- Vietnamese Locale CP 1258.
-- ...
+Cơ chế: ATKey đọc trạng thái IME qua `WM_IME_CONTROL` trên một luồng nền và lưu
+vào bộ đệm. Hook bàn phím chỉ đọc bộ đệm đó, **không bao giờ gọi `SendMessage`
+bên trong hook** — gọi đồng bộ trong hook cấp thấp sẽ làm Windows vượt
+`LowLevelHooksTimeout` rồi gỡ hook, khiến bộ gõ chết im lặng.
 
-## Tính năng:
-- **Modern orthography** (On/Off) - Đặt dấu oà, uý thay vì òa, úy.
-- **Quick Telex** (On/Off) - Gõ nhanh (cc=ch, gg=gi, kk=kh, nn=ng, qq=qu, pp=ph, tt=th).
-- **Grammar check** (On/Off) - Kiểm tra ngữ pháp.
-- **Spelling check** (On/Off) - Kiểm tra chính tả.
-- **Restore key if invalid word** (on/off) - Phục hồi phím với từ sai.
-- **Run on startup** (On/Off) - Chạy cùng macOS.
-- **Gray menu bar icon** (On/Off) - Biểu tượng xám trên thanh menu phù hợp với chế độ Dark mode.
-- **Switch input mode by shortcut key** - Đổi chế độ gõ bằng phím tắt tùy chọn.
-- **Autocorrect fixed** (On/Off) - Sửa lỗi autocorrect trên trình duyệt như Chrome, Safari, Firefox, Microsoft Excel.
-- **Underline issue fixed on macOS** (On/Off) - Sửa lỗi gạch chân trên macOS.
-- **Tạm tắt kiểm tra chính tả bằng phím Ctrl** (On/Off) (Bản 1.5 về sau).
-- **Tạm tắt OpenKey bằng phím Cmd/Alt** (On/Off) (Bản 2.0.1 về sau).
-- **Cho phép dùng f z w j làm phụ âm đầu** (On/Off) (Bản 1.5 về sau).
-- **Gõ tắt phụ âm đầu: f->ph, j->gi, w->qu** (On/Off) (Bản 1.6 về sau).
-- **Gõ tắt phụ âm cuối: g->ng, h->nh, k->ch** (On/Off) (Bản 1.6 về sau).
-- **Hiện biểu tượng trên thanh Dock** (On/Off) (Bản 2.0.1 về sau). Bấm vào icon trên thanh Dock sẽ mở nhanh Bảng điều khiển.
-- **Macro** - Tính năng gõ tắt vô cùng tiện lợi. Gõ tắt của macOS chỉ hỗ trợ 20 ký tự, còn OpenKey không giới hạn ký tự.
-- **Chuyển chế độ thông minh:** (On/Off) (Bản 1.2 về sau) - Bạn đang dùng chế độ gõ Tiếng Việt trên ứng dụng A, bạn chuyển qua ứng dụng B trước đó bạn dùng chế độ gõ Tiếng Anh, OpenKey sẽ tự động chuyển qua chế độ gõ Tiếng Anh cho bạn, khi bạn quay lại ứng dụng A, OpenKey tất nhiên sẽ chuyển lại chế độ gõ tiếng Việt, rất cơ động.
-- **Viết Hoa chữ cái đầu câu** (On/Off) (Bản 1.2 về sau) - Khi gõ văn bản dài, đôi khi bạn quên ghi hoa chữ cái đầu câu khi kết thúc một câu hoặc khi xuống hàng, tính năng này sẽ tự ghi hoa chữ cái đầu câu cho bạn, thật tuyệt vời.
-- **Chế độ “Gửi từng phím”:** (On/Off) (Bản 1.1 về sau) mặc định dùng kỹ thuật mới gửi dữ liệu 1 lần thay vì gửi nhiều lần cho chuỗi ký tự, nên nếu có ứng dụng nào không tương thích, hãy bật tính năng này lên, mặc định thì nên tắt vì kỹ thuật mới sẽ chạy nhanh hơn.
-- **Cập nhật tự động:** (Bản 1.3 về sau) tính năng hỗ trợ cập nhật phiên bản OpenKey mới nhất mỗi khi mở OpenKey hoặc tự check trong phần mục Giới thiệu.
-- **Công cụ chuyển mã:** (Bản 1.4 về sau) hỗ trợ chuyển mã qua lại văn bản, thích hợp cho việc chuyển đổi văn bản cũ viết bằng VNI, TCVN3 qua Unicode,... Hỗ trợ cấu hình phím tắt chuyển mã nhanh, bảng cấu hình tùy chọn chuyển mã.
-- **Tự ghi nhớ bảng mã theo ứng dụng:** (Bản 2.0.1 về sau) Phù hợp cho các bạn dùng Photoshop, CAD,... với các bảng mã VNI, TCVN3. OpenKey tự ghi nhớ ứng dụng nào dùng bảng mã nào để lần sau sử dụng Photoshop, CAD,... OpenKey có thể tự chuyển sang bảng mã đó.
-- ...
+## Tính năng
 
+- Kiểu gõ Telex, VNI, Telex đơn giản
+- Bảng mã Unicode, TCVN3, VNI Windows, Unicode tổ hợp
+- Kiểm tra chính tả, tự khôi phục phím khi gõ sai
+- Gõ tắt (macro)
+- Tự nhớ chế độ gõ theo từng ứng dụng
+- Công cụ chuyển mã
+- **Tự vô hiệu hoá khi IME tiếng Nhật ở chế độ ひらがな/カタカナ**
+- Phím chuyển Việt/Anh dùng đúng 2 trong 4 phím bổ trợ Ctrl/Alt/Win/Shift,
+  mặc định Ctrl + Shift
 
-[Changelog](https://github.com/tuyenvm/OpenKey/blob/master/CHANGELOG.md)
+## Tải về
 
-## Cài đặt:
-**Cài đặt thủ công:**  
-Tải bản OpenKey mới nhất từ [đây](https://github.com/tuyenvm/OpenKey/releases/latest), mở file `dmg` ra rồi kéo thả `OpenKey.app` vào thư mục `Application`.
+Xem mục [Releases](https://github.com/Tailee1/atkey/releases) hoặc
+[atkey.org](https://atkey.org).
 
-**Cài bằng Homebrew:** (by nhymxu)  
-Nếu chưa cài Homebrew, mở terminal, nhập:
+Yêu cầu: Windows 10 trở lên, 64-bit.
+
+> **Lưu ý về cảnh báo bảo mật.** Mọi bộ gõ tiếng Việt trên Windows đều phải cài
+> hook bàn phím cấp thấp (`WH_KEYBOARD_LL`) và dùng `SendInput` để thay ký tự đã
+> gõ bằng ký tự có dấu. Với máy quét dựa trên hành vi, việc này không phân biệt
+> được với keylogger, nên ATKey có thể bị gắn nhãn nhầm. ATKey **không ghi, không
+> lưu, không gửi đi** bất kỳ phím nào bạn gõ — toàn bộ mã nguồn ở ngay trong repo
+> này, bạn kiểm chứng được.
+
+## Build từ mã nguồn
+
+Cần Visual Studio 2022 hoặc Build Tools kèm workload *Desktop development with C++*.
+
 ```
-$ /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+msbuild Sources\OpenKey\win32\OpenKey\OpenKey.sln ^
+        /p:Configuration=Release /p:Platform=x64 /t:Rebuild
 ```
 
-Kiểm tra phiên bản OpenKey:
-```
-$ brew info --cask openkey
-```
-Gõ lệnh sau để homebrew tự cài OpenKey cho bạn:
-```
-$ brew install --cask openkey
-```
+Kết quả: `Sources\OpenKey\win32\OpenKey\x64\Release\ATKey64.exe`
 
-Để update phiên bản mới nhất của OpenKey
-```
-$ brew upgrade --cask openkey
-```
+Mỗi lần đẩy lên nhánh `main`, GitHub Actions build lại cả x86 và x64, kèm chứng
+thực nguồn gốc build (`actions/attest-build-provenance`) để đối chiếu binary với
+đúng commit sinh ra nó.
 
-## Note - Lưu ý:
-OpenKey cần cấp quyền, vào *System Preferences -> Security & Privacy -> Accessibility*, kích hoạt `OpenKey.app`. **Không tắt nó khi đang dùng OpenKey**.
-![Guide](https://raw.githubusercontent.com/tuyenvm/tuyenvm.github.io/master/images/openkey-guide.png "Accessibility").
+## Quyền riêng tư
 
-## Tác giả
-- Mai Vũ Tuyên.
-- Mọi góp ý, gửi cho mình qua maivutuyen.91@gmail.com  
-- Fanpage: [https://www.facebook.com/OpenKeyVN](https://www.facebook.com/OpenKeyVN)
+ATKey không thu thập gì. Kết nối mạng duy nhất là tải
+`https://atkey.org/version.json` để kiểm tra phiên bản mới, và chỉ khi bạn bật
+tuỳ chọn đó hoặc bấm nút kiểm tra. Cấu hình lưu cục bộ trong
+`HKCU\SOFTWARE\MIKI\ATKey`.
 
-## Liên kết
-- [OpenKey cho Windows, xem chi tiết tại đây](https://github.com/tuyenvm/OpenKey/tree/master/Sources/OpenKey/win32)
-- [OpenKey cho Linux (đang phát triển)](https://github.com/tuyenvm/OpenKey/tree/master/Sources/OpenKey/linux)
-## Một điều nhỏ nhoi
-Đừng quên ủng hộ tác giả bằng cách mua ly cafe cho tác giả tỉnh ngủ nhé:  
-[Buy me a coffee ^^](https://tuyenvm.github.io/donate.html)  
-[Redbull cũng được ^^](https://paypal.me/tuyenmai)  
-Hoặc trực tiếp qua ví momo:   
-![Donate by momo](https://tuyenvm.github.io/images/momo.png "Momo").   
+## Giấy phép và ghi công
 
-Cảm ơn các bạn rất nhiều.
+ATKey là **bản sửa đổi của [OpenKey](https://github.com/tuyenvm/OpenKey)** do Mai
+Vũ Tuyên viết, phát hành theo **GNU General Public License v3**.
+
+Xem [`NOTICE-ATKey.md`](NOTICE-ATKey.md) để biết đầy đủ những gì đã thay đổi so
+với bản gốc, và [`LICENSE`](LICENSE) cho toàn văn giấy phép.
+
+Phần engine xử lý tiếng Việt (`Sources/OpenKey/engine/`) giữ nguyên không sửa.
+
+Phát triển bởi ATPOS — Công ty Cổ phần MIKI, [atkey.org](https://atkey.org).
